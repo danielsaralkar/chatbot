@@ -8,6 +8,8 @@ ChatBot.DEFAULT_ANIMATION = "waiting";
 ChatBot.animationTimeout;
 //Holds the speech synthesis configuration like language, pich and rate
 ChatBot.speechConfig;
+ChatBot.clientName;
+ChatBot.interactionCount = 0;
 //Will be set to false automatically whan the browser does not support speech synthesis
 //Or when the user clicks the mute button
 ChatBot.speechEnabled = true;
@@ -22,7 +24,16 @@ ChatBot.start = function () {
         ChatBot.bindErrorHandlers();
         ChatBot.initSpeechConfig();
         ChatBot.bindUserActions();
-        ChatBot.write("Hello, My name is Boto. What is yours?", "boto");
+        
+        
+        ChatBot.clientName = ChatBot.readCookie('chatName');
+        if (ChatBot.clientName) {
+            ChatBot.interactionCount = 1;
+            ChatBot.write("Hello " + ChatBot.clientName + ". My name is Boto. Good to see you after long.", "boto");
+        }
+        else{
+            ChatBot.write("Hello, My name is Boto. What is yours?", "boto");
+        }
     });
 };
 
@@ -90,10 +101,17 @@ ChatBot.sendMessage = function () {
             sendBtn.addClass("loading");
             ChatBot.write(chatInput.val(), "me");
             //Sending the user line to the server using the POST method
-            $.post(ChatBot.SERVER_PATH + "/chat", {"msg": chatInput.val()}, function (result) {
+            $.post("/chat", {"msg": chatInput.val(),"interaction":ChatBot.interactionCount}, function (result) {
                 if (typeof result != "undefined" && "msg" in result) {
                     ChatBot.setAnimation(result.animation);
                     ChatBot.write(result.msg, "boto");
+                    console.log(result);
+                    if(ChatBot.interactionCount == 0 && result.name){
+                        ChatBot.createCookie('chatName',result.name, 7);
+                        ChatBot.clientName = ChatBot.readCookie('chatName');
+                        console.log("Cookie Check " + ChatBot.cookieData);
+                        ChatBot.interactionCount = 1;
+                    }
                 } else {
                     //The server did not erred but we got an empty result (handling as error)
                     ChatBot.handleServerError("No result");
@@ -166,5 +184,28 @@ ChatBot.debugPrint = function (msg) {
         console.log("CHATBOT DEBUG: " + msg)
     }
 };
+
+ChatBot.createCookie = function (name,value,days){
+    var expires = "";
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days*24*60*60*1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + value + expires + "; path=/";
+}
+
+ChatBot.readCookie = function (name){
+    var nameEQ = name + "=";
+    var ca = document.cookie.split(';');
+    for(var i=0;i < ca.length;i++) {
+        var c = ca[i];
+        while (c.charAt(0)==' ') c = c.substring(1,c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+    }
+    return null;
+}
+
+
 
 ChatBot.start();
